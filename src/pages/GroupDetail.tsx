@@ -7,21 +7,19 @@ import { ProductRow } from "@/components/ProductRow";
 import { toast } from "@/hooks/use-toast";
 import { useMemo, useState } from "react";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function GroupDetail() {
   const { groupId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [showPartialWarning, setShowPartialWarning] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
 
   const { data: products, isLoading, error, refetch } = useQuery({
     queryKey: ["products", groupId],
@@ -35,13 +33,13 @@ export default function GroupDetail() {
         total: 0,
         counted: 0,
         partial: 0,
-        hasAtLeastOneCount: false,
+        uncounted: 0,
       };
     }
 
     let counted = 0;
     let partial = 0;
-    let hasAtLeastOneCount = true;
+    let uncounted = 0;
 
     products.forEach((p) => {
       const hasFront = p.fields.front_count !== null && p.fields.front_count !== undefined;
@@ -52,7 +50,7 @@ export default function GroupDetail() {
       } else if (hasFront || hasBack) {
         partial++;
       } else {
-        hasAtLeastOneCount = false;
+        uncounted++;
       }
     });
 
@@ -60,7 +58,7 @@ export default function GroupDetail() {
       total: products.length,
       counted,
       partial,
-      hasAtLeastOneCount: hasAtLeastOneCount && (counted > 0 || partial > 0),
+      uncounted,
     };
   }, [products]);
 
@@ -84,15 +82,11 @@ export default function GroupDetail() {
   });
 
   const handleCompleteClick = () => {
-    if (productStats.partial > 0) {
-      setShowPartialWarning(true);
-    } else {
-      completeGroupMutation.mutate();
-    }
+    setShowCompletionModal(true);
   };
 
   const handleConfirmComplete = () => {
-    setShowPartialWarning(false);
+    setShowCompletionModal(false);
     completeGroupMutation.mutate();
   };
 
@@ -117,7 +111,7 @@ export default function GroupDetail() {
 
           <Button
             onClick={handleCompleteClick}
-            disabled={!productStats.hasAtLeastOneCount || completeGroupMutation.isPending}
+            disabled={completeGroupMutation.isPending}
             className="gap-2"
           >
             {completeGroupMutation.isPending ? (
@@ -181,22 +175,50 @@ export default function GroupDetail() {
         </div>
       </main>
 
-      <AlertDialog open={showPartialWarning} onOpenChange={setShowPartialWarning}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Some products are partially counted</AlertDialogTitle>
-            <AlertDialogDescription>
-              {productStats.partial} {productStats.partial === 1 ? "product is" : "products are"} partially counted (front or back only). Are you sure you want to complete this group?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmComplete}>
-              Complete Anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <Dialog open={showCompletionModal} onOpenChange={setShowCompletionModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Complete Group?</DialogTitle>
+            <DialogDescription>
+              Review the count status before completing this group.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3 py-4">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Uncounted products:</span>
+              <span className="font-semibold">{productStats.uncounted}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Partial counts:</span>
+              <span className="font-semibold">{productStats.partial}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Fully counted:</span>
+              <span className="font-semibold">{productStats.counted}</span>
+            </div>
+            
+            {productStats.uncounted > 0 && (
+              <p className="text-sm text-amber-600 dark:text-amber-400 pt-2 border-t">
+                Products with no counts will be recorded as zero stock.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCompletionModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmComplete} disabled={completeGroupMutation.isPending}>
+              {completeGroupMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Complete"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
