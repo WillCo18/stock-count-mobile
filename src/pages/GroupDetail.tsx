@@ -168,7 +168,7 @@ export default function GroupDetail() {
           )}
 
           {!isLoading && !error && products && products.length > 0 && (
-            <div className="space-y-3">
+            <div className="rounded-lg border border-border bg-card overflow-hidden">
               {products.map((product) => (
                 <ProductRow
                   key={product.id}

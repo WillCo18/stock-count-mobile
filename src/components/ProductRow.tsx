@@ -1,11 +1,10 @@
 import { useState, useEffect, memo, useRef } from "react";
 import { Input } from "@/components/ui/input";
-import { Check } from "lucide-react";
+import { Check, Circle } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { submitCounts } from "@/lib/airtable";
 import { useStaff } from "@/contexts/StaffContext";
 import { toast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge";
 import { AirtableProduct } from "@/lib/airtable";
 
 interface ProductRowProps {
@@ -102,66 +101,61 @@ export const ProductRow = memo(({ product, onSaveSuccess }: ProductRowProps) => 
   const total = (parseInt(frontCount) || 0) + (parseInt(backCount) || 0);
 
   return (
-    <div
-      className={`rounded-lg p-3 transition-all ${
-        isComplete
-          ? "border-2 border-green-600/40 bg-card"
-          : isPartial
-          ? "border-2 border-amber-500/60 bg-card"
-          : "border border-border bg-card"
-      }`}
-    >
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <div className="flex-1 space-y-0.5">
-          <div className="text-sm font-semibold text-foreground leading-tight">
+    <div className="border-b border-border py-2 px-3 transition-colors hover:bg-muted/20">
+      <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+        {/* Product name - left side */}
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-foreground truncate">
             {product.fields.description}
           </div>
-          <div className="text-xs text-muted-foreground">PLU: {product.fields.plu}</div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {isPartial && (
-            <Badge variant="outline" className="border-amber-500/60 text-amber-700 dark:text-amber-400 text-xs">
-              Partial
-            </Badge>
-          )}
-          {isComplete && (
-            <Check className="h-5 w-5 text-green-600 dark:text-green-500" />
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-3">
-        <div>
-          <label className="mb-1 block text-xs text-muted-foreground">
-            Front
-          </label>
-          <Input
-            type="number"
-            inputMode="numeric"
-            value={frontCount}
-            onChange={(e) => handleFrontChange(e.target.value)}
-            className="h-10 text-base"
-            placeholder=""
-          />
         </div>
 
-        <div>
-          <label className="mb-1 block text-xs text-muted-foreground">
-            Back
-          </label>
-          <Input
-            type="number"
-            inputMode="numeric"
-            value={backCount}
-            onChange={(e) => handleBackChange(e.target.value)}
-            className="h-10 text-base"
-            placeholder=""
-          />
-        </div>
+        {/* Inputs and status - right side */}
+        <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
+              Front
+            </label>
+            <Input
+              type="number"
+              inputMode="numeric"
+              value={frontCount}
+              onChange={(e) => handleFrontChange(e.target.value)}
+              className="h-11 w-16 sm:w-20 text-sm px-2"
+              placeholder=""
+              aria-label="Front count"
+            />
+          </div>
 
-        <div>
-          <div className="text-xs text-muted-foreground mb-1">Total</div>
-          <div className="text-base font-semibold text-foreground h-10 flex items-center">{total}</div>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
+              Back
+            </label>
+            <Input
+              type="number"
+              inputMode="numeric"
+              value={backCount}
+              onChange={(e) => handleBackChange(e.target.value)}
+              className="h-11 w-16 sm:w-20 text-sm px-2"
+              placeholder=""
+              aria-label="Back count"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 min-w-[3rem]">
+            <span className="text-xs text-muted-foreground hidden md:inline">Total</span>
+            <span className="text-sm font-semibold text-foreground">{total}</span>
+          </div>
+
+          <div className="w-5 flex items-center justify-center">
+            {isComplete ? (
+              <Check className="h-5 w-5 text-green-600 dark:text-green-500" />
+            ) : isPartial ? (
+              <Circle className="h-4 w-4 fill-amber-500 text-amber-500" />
+            ) : (
+              <Circle className="h-4 w-4 text-muted-foreground/40" />
+            )}
+          </div>
         </div>
       </div>
     </div>
