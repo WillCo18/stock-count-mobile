@@ -1,15 +1,17 @@
 import { MobileLayout } from "@/layouts/MobileLayout";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { useStaff } from "@/contexts/StaffContext";
 import { useQuery } from "@tanstack/react-query";
 import { fetchActiveGroups, fetchProductsByGroup, AirtableProduct } from "@/lib/airtable";
 import { useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
-import { useMemo } from "react";
+import { Loader2, Search } from "lucide-react";
+import { useMemo, useState } from "react";
 
 export default function Groups() {
   const { staffName } = useStaff();
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: groups, isLoading, error } = useQuery({
     queryKey: ["groups"],
@@ -92,6 +94,18 @@ export default function Groups() {
     return stats;
   }, [groupProductsQueries.data, groups]);
 
+  // Filter groups based on search query
+  const filteredGroups = useMemo(() => {
+    if (!groups) return [];
+    if (!searchQuery.trim()) return groups;
+    
+    const query = searchQuery.toLowerCase();
+    return groups.filter(group => 
+      group.group_name.toLowerCase().includes(query) ||
+      group.group_number.toLowerCase().includes(query)
+    );
+  }, [groups, searchQuery]);
+
   const handleGroupSelect = (groupNumber: string) => {
     navigate(`/groups/${groupNumber}`);
   };
@@ -104,6 +118,18 @@ export default function Groups() {
           <p className="text-sm text-muted-foreground">
             Counting as <span className="font-semibold text-foreground">{staffName}</span>
           </p>
+        </div>
+
+        {/* Search bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search groups…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
         </div>
 
         {/* Loading state */}
@@ -131,10 +157,19 @@ export default function Groups() {
           </Card>
         )}
 
+        {/* No search results */}
+        {!isLoading && !error && groups && groups.length > 0 && filteredGroups.length === 0 && (
+          <Card className="p-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              No groups match your search.
+            </p>
+          </Card>
+        )}
+
         {/* Groups list */}
-        {!isLoading && !groupProductsQueries.isLoading && !error && groups && groups.length > 0 && (
+        {!isLoading && !groupProductsQueries.isLoading && !error && filteredGroups && filteredGroups.length > 0 && (
           <div className="space-y-3">
-            {groups.map((group) => {
+            {filteredGroups.map((group) => {
               const stats = groupStats[group.group_number];
               const isCompleted = group.completed;
               

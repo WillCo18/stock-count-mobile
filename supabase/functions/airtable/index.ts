@@ -37,11 +37,11 @@ serve(async (req) => {
     // Route handling
     switch (path) {
       case 'groups': {
-        console.log('Fetching active groups from Airtable');
+        console.log('Fetching all groups from Airtable');
         
-        // Fetch groups that are not completed
+        // Fetch all groups (completed or not)
         const response = await fetch(
-          `${baseUrl}/Groups?filterByFormula=NOT({completed})`,
+          `${baseUrl}/Groups`,
           { headers: airtableHeaders }
         );
 
@@ -50,7 +50,7 @@ serve(async (req) => {
         }
 
         const data = await response.json();
-        console.log(`Retrieved ${data.records?.length || 0} active groups`);
+        console.log(`Retrieved ${data.records?.length || 0} groups`);
 
         // Transform Airtable records to simplified format
         const groups = data.records?.map((record: any) => ({
