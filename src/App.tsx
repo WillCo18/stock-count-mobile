@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { StaffProvider } from "./contexts/StaffContext";
-import StaffSelection from "./pages/StaffSelection";
+import Index from "./pages/index";
 import Groups from "./pages/Groups";
 import GroupDetail from "./pages/GroupDetail";
 import NotFound from "./pages/NotFound";
@@ -19,7 +19,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<StaffSelection />} />
+            <Route path="/" element={<Index />} />
             <Route path="/groups" element={<Groups />} />
             <Route path="/groups/:groupId" element={<GroupDetail />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
