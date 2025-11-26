@@ -1,6 +1,4 @@
 import { ReactNode } from "react";
-import { NavLink } from "@/components/NavLink";
-import { Package, ListChecks, User } from "lucide-react";
 
 interface MobileLayoutProps {
   children: ReactNode;
@@ -29,29 +27,6 @@ export function MobileLayout({ children, title }: MobileLayoutProps) {
           {children}
         </div>
       </main>
-
-      {/* Bottom navigation bar - fixed for easy thumb access */}
-      <nav className="sticky bottom-0 z-50 border-t border-border bg-card shadow-lg">
-        <div className="flex h-16 items-center justify-around">
-          <NavLink
-            to="/groups"
-            className="flex flex-col items-center justify-center gap-1 px-4 py-2 text-muted-foreground transition-colors"
-            activeClassName="text-accent font-semibold"
-          >
-            <Package className="h-5 w-5" />
-            <span className="text-xs">Groups</span>
-          </NavLink>
-
-          <NavLink
-            to="/login"
-            className="flex flex-col items-center justify-center gap-1 px-4 py-2 text-muted-foreground transition-colors"
-            activeClassName="text-accent font-semibold"
-          >
-            <User className="h-5 w-5" />
-            <span className="text-xs">Login</span>
-          </NavLink>
-        </div>
-      </nav>
     </div>
   );
 }
