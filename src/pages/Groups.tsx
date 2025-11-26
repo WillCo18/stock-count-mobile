@@ -38,34 +38,35 @@ export default function Groups() {
       for (const group of groups) {
         if (cancelled) break;
 
-        // Skip if already loaded
-        if (productsData[group.group_number]) continue;
+        const groupId = String(group.group_number);
 
-        setLoadingGroups((prev) => new Set(prev).add(group.group_number));
+        // Skip if already loaded
+        if (productsData[groupId]) continue;
+
+        setLoadingGroups((prev) => new Set(prev).add(groupId));
 
         try {
-          const products = await fetchProductsByGroup(group.group_number);
+          const products = await fetchProductsByGroup(groupId);
           if (!cancelled) {
-            setProductsData((prev) => ({ ...prev, [group.group_number]: products }));
+            setProductsData((prev) => ({ ...prev, [groupId]: products }));
             setLoadingGroups((prev) => {
               const next = new Set(prev);
-              next.delete(group.group_number);
+              next.delete(groupId);
               return next;
             });
           }
         } catch (err) {
-          console.error(`Failed to fetch products for group ${group.group_number}:`, err);
+          console.error(`Failed to fetch products for group ${groupId}:`, err);
           if (!cancelled) {
-            setProductsData((prev) => ({ ...prev, [group.group_number]: [] }));
+            setProductsData((prev) => ({ ...prev, [groupId]: [] }));
             setLoadingGroups((prev) => {
               const next = new Set(prev);
-              next.delete(group.group_number);
+              next.delete(groupId);
               return next;
             });
           }
         }
 
-        // Wait 200ms between requests to avoid rate limiting
         await delay(200);
       }
     };
@@ -90,8 +91,9 @@ export default function Groups() {
     > = {};
 
     groups?.forEach((group) => {
-      const products = productsData[group.group_number] || [];
-      const isLoading = loadingGroups.has(group.group_number);
+      const groupId = String(group.group_number);
+      const products = productsData[groupId] || [];
+      const isLoading = loadingGroups.has(groupId);
 
       const totalProducts = products.length;
       let fullyCounted = 0;
@@ -103,7 +105,6 @@ export default function Groups() {
         const hasBack = p.fields.back_count !== null && p.fields.back_count !== undefined;
 
         if (hasFront && hasBack) {
-          // Both values are saved
           if (p.fields.front_count === 0 && p.fields.back_count === 0) {
             zeroStock++;
           } else if (p.fields.front_count > 0 || p.fields.back_count > 0) {
@@ -114,7 +115,6 @@ export default function Groups() {
         }
       });
 
-      // Determine status label
       let statusLabel = "Not started";
       if (group.completed) {
         statusLabel = "Completed";
@@ -124,7 +124,7 @@ export default function Groups() {
         statusLabel = "In progress";
       }
 
-      stats[group.group_number] = {
+      stats[groupId] = {
         totalProducts,
         fullyCounted,
         zeroStock,
@@ -136,32 +136,32 @@ export default function Groups() {
     return stats;
   }, [productsData, groups, loadingGroups]);
 
-  // Filter groups based on search query
+  // Filter groups based on search query — safe string conversion
   const filteredGroups = useMemo(() => {
     if (!groups) return [];
     if (!searchQuery.trim()) return groups;
 
     const query = searchQuery.toLowerCase();
-    return groups.filter(
-      (group) => group.group_name.toLowerCase().includes(query) || group.group_number.toLowerCase().includes(query),
-    );
+    return groups.filter((group) => {
+      const name = group.group_name?.toLowerCase() || "";
+      const num = String(group.group_number).toLowerCase();
+      return name.includes(query) || num.includes(query);
+    });
   }, [groups, searchQuery]);
 
   const handleGroupSelect = (groupNumber: string) => {
-    navigate(`/groups/${groupNumber}`);
+    navigate(`/groups/${String(groupNumber)}`);
   };
 
   return (
     <MobileLayout title="Counting Groups">
       <div className="space-y-6">
-        {/* Staff context display */}
         <div className="rounded-lg border border-border bg-card/50 p-4">
           <p className="text-sm text-muted-foreground">
             Counting as <span className="font-semibold text-foreground">{staffName}</span>
           </p>
         </div>
 
-        {/* Search bar */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -173,50 +173,51 @@ export default function Groups() {
           />
         </div>
 
-        {/* Loading state */}
         {isLoading && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         )}
 
-        {/* Error state */}
         {error && (
           <Card className="p-6 text-center">
             <p className="text-sm text-destructive">Failed to load groups. Please try again.</p>
           </Card>
         )}
 
-        {/* Empty state */}
         {!isLoading && !error && groups?.length === 0 && (
           <Card className="p-6 text-center">
             <p className="text-sm text-muted-foreground">No groups available at this time.</p>
           </Card>
         )}
 
-        {/* No search results */}
         {!isLoading && !error && groups && groups.length > 0 && filteredGroups.length === 0 && (
           <Card className="p-6 text-center">
             <p className="text-sm text-muted-foreground">No groups match your search.</p>
           </Card>
         )}
 
-        {/* Groups list */}
         {!isLoading && !error && filteredGroups && filteredGroups.length > 0 && (
           <div className="space-y-3">
             {filteredGroups.map((group) => {
-              const stats = groupStats[group.group_number];
-              const isCompleted = group.completed;
+              const groupId = String(group.group_number);
+              const stats = groupStats[groupId] || {
+                totalProducts: 0,
+                fullyCounted: 0,
+                zeroStock: 0,
+                statusLabel: group.completed ? "Completed" : "Not started",
+                isLoading: true,
+              };
 
               return (
                 <button
-                  key={group.group_number}
-                  onClick={() => handleGroupSelect(group.group_number)}
+                  key={groupId}
+                  onClick={() => handleGroupSelect(groupId)}
                   className={`
                     w-full rounded-lg border p-6 text-left transition-all
                     ${
-                      isCompleted
-                        ? "border-border/50 bg-muted/20 opacity-75"
+                      group.completed
+                        ? "border-border bg-muted/20 opacity-75"
                         : "border-border bg-card hover:border-primary hover:bg-accent active:scale-[0.98]"
                     }
                   `}
@@ -224,24 +225,23 @@ export default function Groups() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="text-lg font-semibold text-foreground mb-2">{group.group_name}</div>
-                      {stats && (
-                        <div className="text-sm text-muted-foreground space-y-1">
-                          {stats.isLoading ? (
-                            <div className="flex items-center gap-2">
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              <span>Loading products...</span>
+
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        {stats.isLoading ? (
+                          <div className="flex items-center gap-2">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <span>Loading products...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <div>
+                              {stats.fullyCounted} / {stats.totalProducts} counted
+                              {stats.zeroStock > 0 && <> • {stats.zeroStock} zero-stock</>}
                             </div>
-                          ) : (
-                            <>
-                              <div>
-                                {stats.fullyCounted} / {stats.totalProducts} counted
-                                {stats.zeroStock > 0 && <> • {stats.zeroStock} zero-stock</>}
-                              </div>
-                              <div className="font-medium">Status: {stats.statusLabel}</div>
-                            </>
-                          )}
-                        </div>
-                      )}
+                            <div className="font-medium">Status: {stats.statusLabel}</div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </button>
