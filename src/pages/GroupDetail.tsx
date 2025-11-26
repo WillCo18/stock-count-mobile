@@ -5,12 +5,23 @@ import { fetchProductsByGroup, markGroupComplete } from "@/lib/airtable";
 import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { ProductRow } from "@/components/ProductRow";
 import { toast } from "@/hooks/use-toast";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function GroupDetail() {
   const { groupId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [showPartialWarning, setShowPartialWarning] = useState(false);
 
   const { data: products, isLoading, error, refetch } = useQuery({
     queryKey: ["products", groupId],
@@ -18,16 +29,39 @@ export default function GroupDetail() {
     enabled: !!groupId,
   });
 
-  const allProductsCompleted = useMemo(() => {
-    if (!products || products.length === 0) return false;
-    return products.every(
-      (p) =>
-        p.fields.sheet_completed ||
-        (p.fields.front_count !== null && 
-         p.fields.front_count !== undefined && 
-         p.fields.back_count !== null && 
-         p.fields.back_count !== undefined)
-    );
+  const productStats = useMemo(() => {
+    if (!products || products.length === 0) {
+      return {
+        total: 0,
+        counted: 0,
+        partial: 0,
+        hasAtLeastOneCount: false,
+      };
+    }
+
+    let counted = 0;
+    let partial = 0;
+    let hasAtLeastOneCount = true;
+
+    products.forEach((p) => {
+      const hasFront = p.fields.front_count !== null && p.fields.front_count !== undefined;
+      const hasBack = p.fields.back_count !== null && p.fields.back_count !== undefined;
+
+      if (hasFront && hasBack) {
+        counted++;
+      } else if (hasFront || hasBack) {
+        partial++;
+      } else {
+        hasAtLeastOneCount = false;
+      }
+    });
+
+    return {
+      total: products.length,
+      counted,
+      partial,
+      hasAtLeastOneCount: hasAtLeastOneCount && (counted > 0 || partial > 0),
+    };
   }, [products]);
 
   const completeGroupMutation = useMutation({
@@ -49,6 +83,19 @@ export default function GroupDetail() {
     },
   });
 
+  const handleCompleteClick = () => {
+    if (productStats.partial > 0) {
+      setShowPartialWarning(true);
+    } else {
+      completeGroupMutation.mutate();
+    }
+  };
+
+  const handleConfirmComplete = () => {
+    setShowPartialWarning(false);
+    completeGroupMutation.mutate();
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Sticky header */}
@@ -69,8 +116,8 @@ export default function GroupDetail() {
           </div>
 
           <Button
-            onClick={() => completeGroupMutation.mutate()}
-            disabled={!allProductsCompleted || completeGroupMutation.isPending}
+            onClick={handleCompleteClick}
+            disabled={!productStats.hasAtLeastOneCount || completeGroupMutation.isPending}
             className="gap-2"
           >
             {completeGroupMutation.isPending ? (
@@ -86,6 +133,18 @@ export default function GroupDetail() {
       {/* Main content */}
       <main className="flex-1 overflow-auto">
         <div className="container mx-auto max-w-2xl p-4">
+          {!isLoading && !error && products && products.length > 0 && (
+            <div className="mb-3 rounded-lg border border-border bg-muted/30 px-4 py-2">
+              <div className="text-sm font-medium text-foreground">
+                {productStats.counted} of {productStats.total} products counted
+              </div>
+              {productStats.partial > 0 && (
+                <div className="text-xs text-muted-foreground">
+                  {productStats.partial} partially counted
+                </div>
+              )}
+            </div>
+          )}
           {isLoading && (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -121,6 +180,23 @@ export default function GroupDetail() {
           )}
         </div>
       </main>
+
+      <AlertDialog open={showPartialWarning} onOpenChange={setShowPartialWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Some products are partially counted</AlertDialogTitle>
+            <AlertDialogDescription>
+              {productStats.partial} {productStats.partial === 1 ? "product is" : "products are"} partially counted (front or back only). Are you sure you want to complete this group?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmComplete}>
+              Complete Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
