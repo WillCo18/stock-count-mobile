@@ -6,27 +6,32 @@
 export interface AirtableProduct {
   id: string;
   fields: {
-    product_id: string;
-    name: string;
+    sage_ref: string;
+    plu: string;
+    description: string;
     group_number: string;
-    sku?: string;
-    barcode?: string;
-    // Add other fields as needed based on Airtable schema
+    front_count?: number;
+    back_count?: number;
+    total_count?: number; // Formula field in Airtable
+    sheet_completed?: boolean;
+    last_updated_by?: string;
+    active_this_month?: boolean;
+    unique_id: string;
   };
 }
 
 export interface AirtableGroup {
   group_number: string;
-  product_count: number;
-  status: 'pending' | 'in_progress' | 'completed';
+  group_name: string;
+  completed: boolean;
 }
 
 export interface CountSubmission {
-  productId: string;
+  uniqueId: string;
   frontCount: number;
   backCount: number;
   userName: string;
-  timestamp?: string;
+  sheetCompleted: boolean;
 }
 
 /**
@@ -92,10 +97,7 @@ export async function submitCounts(
   try {
     const { data, error } = await supabase.functions.invoke('airtable/submit-count', {
       method: 'POST',
-      body: {
-        ...counts,
-        timestamp: counts.timestamp || new Date().toISOString(),
-      },
+      body: counts,
     });
 
     if (error) {

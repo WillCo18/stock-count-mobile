@@ -39,10 +39,9 @@ serve(async (req) => {
       case 'groups': {
         console.log('Fetching active groups from Airtable');
         
-        // Fetch groups with status pending or in_progress
-        // Adjust table name and field names based on your Airtable schema
+        // Fetch groups that are not completed
         const response = await fetch(
-          `${baseUrl}/Groups?filterByFormula=OR({status}='pending',{status}='in_progress')`,
+          `${baseUrl}/Groups?filterByFormula=NOT({completed})`,
           { headers: airtableHeaders }
         );
 
@@ -56,8 +55,8 @@ serve(async (req) => {
         // Transform Airtable records to simplified format
         const groups = data.records?.map((record: any) => ({
           group_number: record.fields.group_number,
-          product_count: record.fields.product_count || 0,
-          status: record.fields.status || 'pending',
+          group_name: record.fields.group_name,
+          completed: record.fields.completed || false,
         })) || [];
 
         return new Response(
@@ -107,25 +106,40 @@ serve(async (req) => {
         }
 
         const body = await req.json();
-        const { productId, frontCount, backCount, userName, timestamp } = body;
+        const { uniqueId, frontCount, backCount, userName, sheetCompleted } = body;
 
-        console.log(`Submitting count for product ${productId} by ${userName}`);
+        console.log(`Submitting count for product ${uniqueId} by ${userName}`);
 
-        // Create a new count record
-        // Adjust table name and field names based on your Airtable schema
+        // Find the product record by unique_id
+        const findResponse = await fetch(
+          `${baseUrl}/Products?filterByFormula={unique_id}='${uniqueId}'`,
+          { headers: airtableHeaders }
+        );
+
+        if (!findResponse.ok) {
+          throw new Error(`Failed to find product: ${findResponse.statusText}`);
+        }
+
+        const findData = await findResponse.json();
+        
+        if (!findData.records || findData.records.length === 0) {
+          throw new Error(`Product ${uniqueId} not found`);
+        }
+
+        const recordId = findData.records[0].id;
+
+        // Update the product record with count data
         const response = await fetch(
-          `${baseUrl}/Counts`,
+          `${baseUrl}/Products/${recordId}`,
           {
-            method: 'POST',
+            method: 'PATCH',
             headers: airtableHeaders,
             body: JSON.stringify({
               fields: {
-                product_id: productId,
                 front_count: frontCount,
                 back_count: backCount,
-                user_name: userName,
-                timestamp: timestamp || new Date().toISOString(),
-                total_count: frontCount + backCount,
+                last_updated_by: userName,
+                sheet_completed: sheetCompleted,
               },
             }),
           }
@@ -182,8 +196,7 @@ serve(async (req) => {
             headers: airtableHeaders,
             body: JSON.stringify({
               fields: {
-                status: 'completed',
-                completed_at: new Date().toISOString(),
+                completed: true,
               },
             }),
           }
