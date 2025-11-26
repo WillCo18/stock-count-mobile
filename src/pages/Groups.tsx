@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchActiveGroups, fetchProductsByGroup, AirtableProduct } from "@/lib/airtable";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 export default function Groups() {
   const { staffName } = useStaff();
@@ -18,39 +18,73 @@ export default function Groups() {
     queryFn: fetchActiveGroups,
   });
 
-  // Fetch products for all groups to compute summary stats
-  const groupProductsQueries = useQuery({
-    queryKey: ["all-group-products", groups?.map(g => g.group_number)],
-    queryFn: async () => {
-      if (!groups) return {};
-      const results: Record<string, AirtableProduct[]> = {};
-      await Promise.all(
-        groups.map(async (group) => {
-          try {
-            const products = await fetchProductsByGroup(group.group_number);
-            results[group.group_number] = products;
-          } catch (error) {
-            console.error(`Failed to fetch products for group ${group.group_number}:`, error);
-            results[group.group_number] = [];
+  // State to track loaded product data
+  const [productsData, setProductsData] = useState<Record<string, AirtableProduct[]>>({});
+  const [loadingGroups, setLoadingGroups] = useState<Set<string>>(new Set());
+
+  // Sequentially fetch products with delays to avoid rate limits
+  useEffect(() => {
+    if (!groups || groups.length === 0) return;
+
+    let cancelled = false;
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    const fetchSequentially = async () => {
+      for (const group of groups) {
+        if (cancelled) break;
+        
+        // Skip if already loaded
+        if (productsData[group.group_number]) continue;
+
+        setLoadingGroups(prev => new Set(prev).add(group.group_number));
+
+        try {
+          const products = await fetchProductsByGroup(group.group_number);
+          if (!cancelled) {
+            setProductsData(prev => ({ ...prev, [group.group_number]: products }));
+            setLoadingGroups(prev => {
+              const next = new Set(prev);
+              next.delete(group.group_number);
+              return next;
+            });
           }
-        })
-      );
-      return results;
-    },
-    enabled: !!groups && groups.length > 0,
-  });
+        } catch (err) {
+          console.error(`Failed to fetch products for group ${group.group_number}:`, err);
+          if (!cancelled) {
+            setProductsData(prev => ({ ...prev, [group.group_number]: [] }));
+            setLoadingGroups(prev => {
+              const next = new Set(prev);
+              next.delete(group.group_number);
+              return next;
+            });
+          }
+        }
+
+        // Wait 200ms between requests to avoid rate limiting
+        await delay(200);
+      }
+    };
+
+    fetchSequentially();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [groups]);
 
   const groupStats = useMemo(() => {
-    if (!groupProductsQueries.data) return {};
-    
     const stats: Record<string, {
       totalProducts: number;
       fullyCounted: number;
       zeroStock: number;
       statusLabel: string;
+      isLoading: boolean;
     }> = {};
 
-    Object.entries(groupProductsQueries.data).forEach(([groupNumber, products]) => {
+    groups?.forEach((group) => {
+      const products = productsData[group.group_number] || [];
+      const isLoading = loadingGroups.has(group.group_number);
+      
       const totalProducts = products.length;
       let fullyCounted = 0;
       let zeroStock = 0;
@@ -73,9 +107,8 @@ export default function Groups() {
       });
 
       // Determine status label
-      const group = groups?.find(g => g.group_number === groupNumber);
       let statusLabel = "Not started";
-      if (group?.completed) {
+      if (group.completed) {
         statusLabel = "Completed";
       } else if (notStarted === totalProducts) {
         statusLabel = "Not started";
@@ -83,16 +116,17 @@ export default function Groups() {
         statusLabel = "In progress";
       }
 
-      stats[groupNumber] = {
+      stats[group.group_number] = {
         totalProducts,
         fullyCounted,
         zeroStock,
         statusLabel,
+        isLoading,
       };
     });
 
     return stats;
-  }, [groupProductsQueries.data, groups]);
+  }, [productsData, groups, loadingGroups]);
 
   // Filter groups based on search query
   const filteredGroups = useMemo(() => {
@@ -133,7 +167,7 @@ export default function Groups() {
         </div>
 
         {/* Loading state */}
-        {(isLoading || groupProductsQueries.isLoading) && (
+        {isLoading && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
@@ -167,7 +201,7 @@ export default function Groups() {
         )}
 
         {/* Groups list */}
-        {!isLoading && !groupProductsQueries.isLoading && !error && filteredGroups && filteredGroups.length > 0 && (
+        {!isLoading && !error && filteredGroups && filteredGroups.length > 0 && (
           <div className="space-y-3">
             {filteredGroups.map((group) => {
               const stats = groupStats[group.group_number];
@@ -193,15 +227,24 @@ export default function Groups() {
                       </div>
                       {stats && (
                         <div className="text-sm text-muted-foreground space-y-1">
-                          <div>
-                            {stats.fullyCounted} / {stats.totalProducts} counted
-                            {stats.zeroStock > 0 && (
-                              <> • {stats.zeroStock} zero-stock</>
-                            )}
-                          </div>
-                          <div className="font-medium">
-                            Status: {stats.statusLabel}
-                          </div>
+                          {stats.isLoading ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              <span>Loading products...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <div>
+                                {stats.fullyCounted} / {stats.totalProducts} counted
+                                {stats.zeroStock > 0 && (
+                                  <> • {stats.zeroStock} zero-stock</>
+                                )}
+                              </div>
+                              <div className="font-medium">
+                                Status: {stats.statusLabel}
+                              </div>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
