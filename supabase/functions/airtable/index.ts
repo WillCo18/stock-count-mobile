@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 /**
@@ -11,39 +11,41 @@ const corsHeaders = {
  */
 serve(async (req) => {
   // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const url = new URL(req.url);
-    const path = url.pathname.split('/').pop();
-    
-    const AIRTABLE_API_KEY = Deno.env.get('AIRTABLE_API_KEY');
-    const AIRTABLE_BASE_ID = Deno.env.get('AIRTABLE_BASE_ID');
+    const path = url.pathname.split("/").pop();
+
+    const AIRTABLE_API_KEY = Deno.env.get("AIRTABLE_API_KEY");
+    const AIRTABLE_BASE_ID = Deno.env.get("AIRTABLE_BASE_ID");
 
     if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID) {
-      console.error('Missing Airtable credentials');
-      throw new Error('Airtable credentials not configured');
+      console.error("Missing Airtable credentials");
+      throw new Error("Airtable credentials not configured");
     }
 
     const airtableHeaders = {
-      'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
+      Authorization: `Bearer ${AIRTABLE_API_KEY}`,
+      "Content-Type": "application/json",
     };
 
     const baseUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}`;
 
     // Route handling
     switch (path) {
-      case 'groups': {
-        console.log('Fetching all groups from Airtable');
-        
-        // Fetch all groups (completed or not)
-        const response = await fetch(
-          `${baseUrl}/Groups`,
-          { headers: airtableHeaders }
-        );
+      /**
+       * GET /groups
+       * Fetch ALL groups (completed + incomplete)
+       */
+      case "groups": {
+        console.log("Fetching all groups from Airtable");
+
+        const response = await fetch(`${baseUrl}/Groups`, {
+          headers: airtableHeaders,
+        });
 
         if (!response.ok) {
           throw new Error(`Airtable API error: ${response.statusText}`);
@@ -53,33 +55,33 @@ serve(async (req) => {
         console.log(`Retrieved ${data.records?.length || 0} groups`);
 
         // Transform Airtable records to simplified format
-        const groups = data.records?.map((record: any) => ({
-          group_number: record.fields.group_number,
-          group_name: record.fields.group_name,
-          completed: record.fields.completed || false,
-        })) || [];
+        const groups =
+          data.records?.map((record: any) => ({
+            group_number: record.fields.group_number,
+            group_name: record.fields.group_name,
+            completed: record.fields.completed || false,
+          })) || [];
 
-        return new Response(
-          JSON.stringify({ groups }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ groups }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
-      case 'products': {
-        const groupNumber = url.searchParams.get('group');
-        
+      /**
+       * GET /products?group=XX
+       */
+      case "products": {
+        const groupNumber = url.searchParams.get("group");
+
         if (!groupNumber) {
-          throw new Error('Group number is required');
+          throw new Error("Group number is required");
         }
 
         console.log(`Fetching products for group: ${groupNumber}`);
 
-        // Fetch products filtered by group_number
-        // Adjust table name and field names based on your Airtable schema
-        const response = await fetch(
-          `${baseUrl}/Products?filterByFormula={group_number}='${groupNumber}'`,
-          { headers: airtableHeaders }
-        );
+        const response = await fetch(`${baseUrl}/Products?filterByFormula={group_number}='${groupNumber}'`, {
+          headers: airtableHeaders,
+        });
 
         if (!response.ok) {
           throw new Error(`Airtable API error: ${response.statusText}`);
@@ -88,148 +90,133 @@ serve(async (req) => {
         const data = await response.json();
         console.log(`Retrieved ${data.records?.length || 0} products for group ${groupNumber}`);
 
-        // Return full product records for detailed view
-        const products = data.records?.map((record: any) => ({
-          id: record.id,
-          fields: record.fields,
-        })) || [];
+        const products =
+          data.records?.map((record: any) => ({
+            id: record.id,
+            fields: record.fields,
+          })) || [];
 
-        return new Response(
-          JSON.stringify({ products }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ products }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
-      case 'submit-count': {
-        if (req.method !== 'POST') {
-          throw new Error('POST method required');
-        }
+      /**
+       * POST /submit-count
+       */
+      case "submit-count": {
+        if (req.method !== "POST") throw new Error("POST method required");
 
         const body = await req.json();
         const { uniqueId, frontCount, backCount, userName, sheetCompleted } = body;
 
         console.log(`Submitting count for product ${uniqueId} by ${userName}`);
 
-        // Find the product record by unique_id
-        const findResponse = await fetch(
-          `${baseUrl}/Products?filterByFormula={unique_id}='${uniqueId}'`,
-          { headers: airtableHeaders }
-        );
+        const findResponse = await fetch(`${baseUrl}/Products?filterByFormula={unique_id}='${uniqueId}'`, {
+          headers: airtableHeaders,
+        });
 
         if (!findResponse.ok) {
           throw new Error(`Failed to find product: ${findResponse.statusText}`);
         }
 
         const findData = await findResponse.json();
-        
         if (!findData.records || findData.records.length === 0) {
           throw new Error(`Product ${uniqueId} not found`);
         }
 
         const recordId = findData.records[0].id;
 
-        // Update the product record with count data
-        const response = await fetch(
-          `${baseUrl}/Products/${recordId}`,
-          {
-            method: 'PATCH',
-            headers: airtableHeaders,
-            body: JSON.stringify({
-              fields: {
-                front_count: frontCount,
-                back_count: backCount,
-                last_updated_by: userName,
-                sheet_completed: sheetCompleted,
-              },
-            }),
-          }
-        );
+        const response = await fetch(`${baseUrl}/Products/${recordId}`, {
+          method: "PATCH",
+          headers: airtableHeaders,
+          body: JSON.stringify({
+            fields: {
+              front_count: frontCount,
+              back_count: backCount,
+              last_updated_by: userName,
+              sheet_completed: sheetCompleted,
+            },
+          }),
+        });
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('Airtable submission error:', errorText);
+          console.error("Airtable submission error:", errorText);
           throw new Error(`Failed to submit count: ${response.statusText}`);
         }
 
         const data = await response.json();
         console.log(`Count submitted successfully, record ID: ${data.id}`);
 
-        return new Response(
-          JSON.stringify({ success: true, recordId: data.id }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ success: true, recordId: data.id }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
-      case 'complete-group': {
-        if (req.method !== 'POST') {
-          throw new Error('POST method required');
-        }
+      /**
+       * POST /complete-group
+       */
+      case "complete-group": {
+        if (req.method !== "POST") throw new Error("POST method required");
 
         const body = await req.json();
         const { groupNumber } = body;
 
         console.log(`Marking group ${groupNumber} as complete`);
 
-        // First, find the group record by group_number
-        const findResponse = await fetch(
-          `${baseUrl}/Groups?filterByFormula={group_number}='${groupNumber}'`,
-          { headers: airtableHeaders }
-        );
+        const findResponse = await fetch(`${baseUrl}/Groups?filterByFormula={group_number}='${groupNumber}'`, {
+          headers: airtableHeaders,
+        });
 
         if (!findResponse.ok) {
           throw new Error(`Failed to find group: ${findResponse.statusText}`);
         }
 
         const findData = await findResponse.json();
-        
         if (!findData.records || findData.records.length === 0) {
           throw new Error(`Group ${groupNumber} not found`);
         }
 
         const recordId = findData.records[0].id;
 
-        // Update the group status to completed
-        const updateResponse = await fetch(
-          `${baseUrl}/Groups/${recordId}`,
-          {
-            method: 'PATCH',
-            headers: airtableHeaders,
-            body: JSON.stringify({
-              fields: {
-                completed: true,
-              },
-            }),
-          }
-        );
+        const updateResponse = await fetch(`${baseUrl}/Groups/${recordId}`, {
+          method: "PATCH",
+          headers: airtableHeaders,
+          body: JSON.stringify({
+            fields: {
+              completed: true,
+            },
+          }),
+        });
 
         if (!updateResponse.ok) {
           const errorText = await updateResponse.text();
-          console.error('Failed to update group status:', errorText);
+          console.error("Failed to update group status:", errorText);
           throw new Error(`Failed to mark group complete: ${updateResponse.statusText}`);
         }
 
         console.log(`Group ${groupNumber} marked as complete`);
 
-        return new Response(
-          JSON.stringify({ success: true }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       default:
-        throw new Error('Invalid endpoint');
+        throw new Error("Invalid endpoint");
     }
   } catch (error) {
-    console.error('Error in airtable function:', error);
-    
+    console.error("Error in airtable function:", error);
+
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error occurred' 
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Unknown error occurred",
       }),
-      { 
+      {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });
