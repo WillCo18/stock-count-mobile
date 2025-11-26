@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchProductsByGroup, markGroupComplete } from "@/lib/airtable";
+import { fetchProductsByGroup, markGroupComplete, fetchActiveGroups } from "@/lib/airtable";
 import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { ProductRow } from "@/components/ProductRow";
 import { toast } from "@/hooks/use-toast";
@@ -26,6 +26,17 @@ export default function GroupDetail() {
     queryFn: () => fetchProductsByGroup(groupId!),
     enabled: !!groupId,
   });
+
+  // Fetch groups to get the group name
+  const { data: groups } = useQuery({
+    queryKey: ["groups"],
+    queryFn: fetchActiveGroups,
+  });
+
+  const groupName = useMemo(() => {
+    const group = groups?.find(g => g.group_number === groupId);
+    return group?.group_name || `Group ${groupId}`;
+  }, [groups, groupId]);
 
   const productStats = useMemo(() => {
     if (!products || products.length === 0) {
@@ -105,7 +116,7 @@ export default function GroupDetail() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <h1 className="text-lg font-bold text-foreground">
-              Group {groupId}
+              {groupName}
             </h1>
           </div>
 
