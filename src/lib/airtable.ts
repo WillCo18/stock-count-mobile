@@ -41,13 +41,13 @@ export interface CountSubmission {
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Fetch all active counting groups
- * Returns groups with pending or in-progress status
+ * Fetch only active groups (legacy behaviour)
+ * Not used for dashboard now, but kept for compatibility.
  */
 export async function fetchActiveGroups(): Promise<AirtableGroup[]> {
   try {
-    const { data, error } = await supabase.functions.invoke('airtable/groups', {
-      method: 'GET',
+    const { data, error } = await supabase.functions.invoke("airtable/groups", {
+      method: "GET",
     });
 
     if (error) {
@@ -56,7 +56,29 @@ export async function fetchActiveGroups(): Promise<AirtableGroup[]> {
 
     return data?.groups || [];
   } catch (error) {
-    console.error('Error fetching active groups:', error);
+    console.error("Error fetching active groups:", error);
+    throw error;
+  }
+}
+
+/**
+ * NEW — Fetch ALL groups, completed or not.
+ * This is required so the dashboard never hides completed groups.
+ */
+export async function fetchAllGroups(): Promise<AirtableGroup[]> {
+  try {
+    const { data, error } = await supabase.functions.invoke("airtable/groups", {
+      method: "GET",
+    });
+
+    if (error) {
+      throw new Error(`Failed to fetch groups: ${error.message}`);
+    }
+
+    // This returns ALL groups because the Edge Function was updated
+    return data?.groups || [];
+  } catch (error) {
+    console.error("Error fetching all groups:", error);
     throw error;
   }
 }
@@ -65,15 +87,13 @@ export async function fetchActiveGroups(): Promise<AirtableGroup[]> {
  * Fetch all products for a specific group
  * @param groupNumber - The group identifier
  */
-export async function fetchProductsByGroup(
-  groupNumber: string
-): Promise<AirtableProduct[]> {
+export async function fetchProductsByGroup(groupNumber: string): Promise<AirtableProduct[]> {
   try {
     const { data, error } = await supabase.functions.invoke(
       `airtable/products?group=${encodeURIComponent(groupNumber)}`,
       {
-        method: 'GET',
-      }
+        method: "GET",
+      },
     );
 
     if (error) {
@@ -82,7 +102,7 @@ export async function fetchProductsByGroup(
 
     return data?.products || [];
   } catch (error) {
-    console.error('Error fetching products for group:', error);
+    console.error("Error fetching products for group:", error);
     throw error;
   }
 }
@@ -91,12 +111,10 @@ export async function fetchProductsByGroup(
  * Submit count data for a product
  * @param counts - Count submission data
  */
-export async function submitCounts(
-  counts: CountSubmission
-): Promise<{ success: boolean; recordId?: string }> {
+export async function submitCounts(counts: CountSubmission): Promise<{ success: boolean; recordId?: string }> {
   try {
-    const { data, error } = await supabase.functions.invoke('airtable/submit-count', {
-      method: 'POST',
+    const { data, error } = await supabase.functions.invoke("airtable/submit-count", {
+      method: "POST",
       body: counts,
     });
 
@@ -106,7 +124,7 @@ export async function submitCounts(
 
     return data;
   } catch (error) {
-    console.error('Error submitting counts:', error);
+    console.error("Error submitting counts:", error);
     throw error;
   }
 }
@@ -115,12 +133,10 @@ export async function submitCounts(
  * Mark a counting group as complete
  * @param groupNumber - The group to mark complete
  */
-export async function markGroupComplete(
-  groupNumber: string
-): Promise<{ success: boolean }> {
+export async function markGroupComplete(groupNumber: string): Promise<{ success: boolean }> {
   try {
-    const { data, error } = await supabase.functions.invoke('airtable/complete-group', {
-      method: 'POST',
+    const { data, error } = await supabase.functions.invoke("airtable/complete-group", {
+      method: "POST",
       body: { groupNumber },
     });
 
@@ -130,7 +146,7 @@ export async function markGroupComplete(
 
     return data;
   } catch (error) {
-    console.error('Error marking group complete:', error);
+    console.error("Error marking group complete:", error);
     throw error;
   }
 }

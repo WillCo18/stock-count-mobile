@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useStaff } from "@/contexts/StaffContext";
 import { useQuery } from "@tanstack/react-query";
-import { fetchActiveGroups, fetchProductsByGroup, AirtableProduct } from "@/lib/airtable";
+import { fetchAllGroups, fetchProductsByGroup, AirtableProduct } from "@/lib/airtable";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Search } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
@@ -13,9 +13,14 @@ export default function Groups() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: groups, isLoading, error } = useQuery({
+  // Fetch ALL groups (completed + not completed)
+  const {
+    data: groups,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["groups"],
-    queryFn: fetchActiveGroups,
+    queryFn: fetchAllGroups,
   });
 
   // State to track loaded product data
@@ -27,22 +32,22 @@ export default function Groups() {
     if (!groups || groups.length === 0) return;
 
     let cancelled = false;
-    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
     const fetchSequentially = async () => {
       for (const group of groups) {
         if (cancelled) break;
-        
+
         // Skip if already loaded
         if (productsData[group.group_number]) continue;
 
-        setLoadingGroups(prev => new Set(prev).add(group.group_number));
+        setLoadingGroups((prev) => new Set(prev).add(group.group_number));
 
         try {
           const products = await fetchProductsByGroup(group.group_number);
           if (!cancelled) {
-            setProductsData(prev => ({ ...prev, [group.group_number]: products }));
-            setLoadingGroups(prev => {
+            setProductsData((prev) => ({ ...prev, [group.group_number]: products }));
+            setLoadingGroups((prev) => {
               const next = new Set(prev);
               next.delete(group.group_number);
               return next;
@@ -51,8 +56,8 @@ export default function Groups() {
         } catch (err) {
           console.error(`Failed to fetch products for group ${group.group_number}:`, err);
           if (!cancelled) {
-            setProductsData(prev => ({ ...prev, [group.group_number]: [] }));
-            setLoadingGroups(prev => {
+            setProductsData((prev) => ({ ...prev, [group.group_number]: [] }));
+            setLoadingGroups((prev) => {
               const next = new Set(prev);
               next.delete(group.group_number);
               return next;
@@ -73,18 +78,21 @@ export default function Groups() {
   }, [groups]);
 
   const groupStats = useMemo(() => {
-    const stats: Record<string, {
-      totalProducts: number;
-      fullyCounted: number;
-      zeroStock: number;
-      statusLabel: string;
-      isLoading: boolean;
-    }> = {};
+    const stats: Record<
+      string,
+      {
+        totalProducts: number;
+        fullyCounted: number;
+        zeroStock: number;
+        statusLabel: string;
+        isLoading: boolean;
+      }
+    > = {};
 
     groups?.forEach((group) => {
       const products = productsData[group.group_number] || [];
       const isLoading = loadingGroups.has(group.group_number);
-      
+
       const totalProducts = products.length;
       let fullyCounted = 0;
       let zeroStock = 0;
@@ -93,7 +101,7 @@ export default function Groups() {
       products.forEach((p) => {
         const hasFront = p.fields.front_count !== null && p.fields.front_count !== undefined;
         const hasBack = p.fields.back_count !== null && p.fields.back_count !== undefined;
-        
+
         if (hasFront && hasBack) {
           // Both values are saved
           if (p.fields.front_count === 0 && p.fields.back_count === 0) {
@@ -132,11 +140,10 @@ export default function Groups() {
   const filteredGroups = useMemo(() => {
     if (!groups) return [];
     if (!searchQuery.trim()) return groups;
-    
+
     const query = searchQuery.toLowerCase();
-    return groups.filter(group => 
-      group.group_name.toLowerCase().includes(query) ||
-      group.group_number.toLowerCase().includes(query)
+    return groups.filter(
+      (group) => group.group_name.toLowerCase().includes(query) || group.group_number.toLowerCase().includes(query),
     );
   }, [groups, searchQuery]);
 
@@ -176,27 +183,21 @@ export default function Groups() {
         {/* Error state */}
         {error && (
           <Card className="p-6 text-center">
-            <p className="text-sm text-destructive">
-              Failed to load groups. Please try again.
-            </p>
+            <p className="text-sm text-destructive">Failed to load groups. Please try again.</p>
           </Card>
         )}
 
         {/* Empty state */}
         {!isLoading && !error && groups?.length === 0 && (
           <Card className="p-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              No groups available at this time.
-            </p>
+            <p className="text-sm text-muted-foreground">No groups available at this time.</p>
           </Card>
         )}
 
         {/* No search results */}
         {!isLoading && !error && groups && groups.length > 0 && filteredGroups.length === 0 && (
           <Card className="p-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              No groups match your search.
-            </p>
+            <p className="text-sm text-muted-foreground">No groups match your search.</p>
           </Card>
         )}
 
@@ -206,7 +207,7 @@ export default function Groups() {
             {filteredGroups.map((group) => {
               const stats = groupStats[group.group_number];
               const isCompleted = group.completed;
-              
+
               return (
                 <button
                   key={group.group_number}
@@ -222,9 +223,7 @@ export default function Groups() {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="text-lg font-semibold text-foreground mb-2">
-                        {group.group_name}
-                      </div>
+                      <div className="text-lg font-semibold text-foreground mb-2">{group.group_name}</div>
                       {stats && (
                         <div className="text-sm text-muted-foreground space-y-1">
                           {stats.isLoading ? (
@@ -236,13 +235,9 @@ export default function Groups() {
                             <>
                               <div>
                                 {stats.fullyCounted} / {stats.totalProducts} counted
-                                {stats.zeroStock > 0 && (
-                                  <> • {stats.zeroStock} zero-stock</>
-                                )}
+                                {stats.zeroStock > 0 && <> • {stats.zeroStock} zero-stock</>}
                               </div>
-                              <div className="font-medium">
-                                Status: {stats.statusLabel}
-                              </div>
+                              <div className="font-medium">Status: {stats.statusLabel}</div>
                             </>
                           )}
                         </div>
