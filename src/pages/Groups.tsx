@@ -23,6 +23,14 @@ function Groups() {
     queryFn: fetchAllGroups,
   });
 
+  // Debug logging for groups data
+  useEffect(() => {
+    console.log("===== GROUPS DEBUG =====");
+    console.log("Total groups:", groups?.length);
+    console.log("All groups:", groups);
+    console.log("Completed groups:", groups?.filter(g => g.completed));
+  }, [groups]);
+
   // State to track loaded product data
   const [productsData, setProductsData] = useState({});
   const [loadingGroups, setLoadingGroups] = useState(new Set());
