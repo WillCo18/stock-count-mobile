@@ -80,12 +80,14 @@ export default function GroupDetail() {
 
   const completeGroupMutation = useMutation({
     mutationFn: () => markGroupComplete(groupId!),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({
         title: "Group completed",
         description: `Group ${groupId} has been marked as complete`,
       });
-      queryClient.invalidateQueries({ queryKey: ["groups"] });
+      // Force refetch of all groups to ensure completed status is updated
+      await queryClient.invalidateQueries({ queryKey: ["groups"] });
+      await queryClient.refetchQueries({ queryKey: ["groups"] });
       navigate("/groups");
     },
     onError: () => {
