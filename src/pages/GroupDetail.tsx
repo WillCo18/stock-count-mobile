@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchProductsByGroup, markGroupComplete, fetchActiveGroups } from "@/lib/airtable";
+import { fetchProductsByGroup, markGroupComplete, fetchAllGroups } from "@/lib/airtable";
 import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { ProductRow } from "@/components/ProductRow";
 import { toast } from "@/hooks/use-toast";
@@ -21,7 +21,12 @@ export default function GroupDetail() {
   const queryClient = useQueryClient();
   const [showCompletionModal, setShowCompletionModal] = useState(false);
 
-  const { data: products, isLoading, error, refetch } = useQuery({
+  const {
+    data: products,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["products", groupId],
     queryFn: () => fetchProductsByGroup(groupId!),
     enabled: !!groupId,
@@ -30,11 +35,11 @@ export default function GroupDetail() {
   // Fetch groups to get the group name
   const { data: groups } = useQuery({
     queryKey: ["groups"],
-    queryFn: fetchActiveGroups,
+    queryFn: fetchAllGroups, // ✅ CHANGED: Now uses fetchAllGroups instead of fetchActiveGroups
   });
 
   const groupName = useMemo(() => {
-    const group = groups?.find(g => g.group_number === groupId);
+    const group = groups?.find((g) => g.group_number === groupId);
     return group?.group_name || `Group ${groupId}`;
   }, [groups, groupId]);
 
@@ -107,24 +112,13 @@ export default function GroupDetail() {
       <header className="sticky top-0 z-50 border-b border-border bg-card shadow-sm">
         <div className="container mx-auto flex h-16 max-w-2xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/groups")}
-              className="shrink-0"
-            >
+            <Button variant="ghost" size="icon" onClick={() => navigate("/groups")} className="shrink-0">
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <h1 className="text-lg font-bold text-foreground">
-              {groupName}
-            </h1>
+            <h1 className="text-lg font-bold text-foreground">{groupName}</h1>
           </div>
 
-          <Button
-            onClick={handleCompleteClick}
-            disabled={completeGroupMutation.isPending}
-            className="gap-2"
-          >
+          <Button onClick={handleCompleteClick} disabled={completeGroupMutation.isPending} className="gap-2">
             {completeGroupMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -144,9 +138,7 @@ export default function GroupDetail() {
                 {productStats.counted} of {productStats.total} products counted
               </div>
               {productStats.partial > 0 && (
-                <div className="text-xs text-muted-foreground">
-                  {productStats.partial} partially counted
-                </div>
+                <div className="text-xs text-muted-foreground">{productStats.partial} partially counted</div>
               )}
             </div>
           )}
@@ -158,28 +150,20 @@ export default function GroupDetail() {
 
           {error && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-6 text-center">
-              <p className="text-sm text-destructive">
-                Failed to load products. Please try again.
-              </p>
+              <p className="text-sm text-destructive">Failed to load products. Please try again.</p>
             </div>
           )}
 
           {!isLoading && !error && products && products.length === 0 && (
             <div className="rounded-lg border border-border bg-card p-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                No products found in this group.
-              </p>
+              <p className="text-sm text-muted-foreground">No products found in this group.</p>
             </div>
           )}
 
           {!isLoading && !error && products && products.length > 0 && (
             <div className="rounded-lg border border-border bg-card overflow-hidden">
               {products.map((product) => (
-                <ProductRow
-                  key={product.id}
-                  product={product}
-                  onSaveSuccess={() => refetch()}
-                />
+                <ProductRow key={product.id} product={product} onSaveSuccess={() => refetch()} />
               ))}
             </div>
           )}
@@ -190,11 +174,9 @@ export default function GroupDetail() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Complete Group?</DialogTitle>
-            <DialogDescription>
-              Review the count status before completing this group.
-            </DialogDescription>
+            <DialogDescription>Review the count status before completing this group.</DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-3 py-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Uncounted products:</span>
@@ -208,7 +190,7 @@ export default function GroupDetail() {
               <span className="text-muted-foreground">Fully counted:</span>
               <span className="font-semibold">{productStats.counted}</span>
             </div>
-            
+
             {productStats.uncounted > 0 && (
               <p className="text-sm text-amber-600 dark:text-amber-400 pt-2 border-t">
                 Products with no counts will be recorded as zero stock.
@@ -221,11 +203,7 @@ export default function GroupDetail() {
               Cancel
             </Button>
             <Button onClick={handleConfirmComplete} disabled={completeGroupMutation.isPending}>
-              {completeGroupMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Complete"
-              )}
+              {completeGroupMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Complete"}
             </Button>
           </DialogFooter>
         </DialogContent>
