@@ -38,6 +38,7 @@ export default function Groups() {
       for (const group of groups) {
         if (cancelled) break;
 
+        // CRITICAL FIX #1: Always coerce to string
         const groupId = String(group.group_number);
 
         // Skip if already loaded
@@ -58,6 +59,7 @@ export default function Groups() {
         } catch (err) {
           console.error(`Failed to fetch products for group ${groupId}:`, err);
           if (!cancelled) {
+            // CRITICAL FIX #2: Set empty array on error, don't skip
             setProductsData((prev) => ({ ...prev, [groupId]: [] }));
             setLoadingGroups((prev) => {
               const next = new Set(prev);
@@ -76,10 +78,10 @@ export default function Groups() {
     return () => {
       cancelled = true;
     };
-  }, [groups]);
+  }, [groups, productsData]);
 
   const groupStats = useMemo(() => {
-    const stats: Record<
+    const stats: Record
       string,
       {
         totalProducts: number;
@@ -91,6 +93,7 @@ export default function Groups() {
     > = {};
 
     groups?.forEach((group) => {
+      // CRITICAL FIX #3: Always coerce to string
       const groupId = String(group.group_number);
       const products = productsData[groupId] || [];
       const isLoading = loadingGroups.has(groupId);
@@ -116,11 +119,12 @@ export default function Groups() {
       });
 
       let statusLabel = "Not started";
-      if (group.completed) {
+      // CRITICAL FIX #4: Check completed status properly
+      if (group.completed === true) {
         statusLabel = "Completed";
-      } else if (notStarted === totalProducts) {
+      } else if (notStarted === totalProducts && totalProducts > 0) {
         statusLabel = "Not started";
-      } else {
+      } else if (fullyCounted > 0 || zeroStock > 0) {
         statusLabel = "In progress";
       }
 
@@ -143,13 +147,15 @@ export default function Groups() {
 
     const query = searchQuery.toLowerCase();
     return groups.filter((group) => {
-      const name = group.group_name?.toLowerCase() || "";
-      const num = String(group.group_number).toLowerCase();
+      const name = (group.group_name || "").toLowerCase();
+      // CRITICAL FIX #5: Safe string coercion
+      const num = String(group.group_number || "").toLowerCase();
       return name.includes(query) || num.includes(query);
     });
   }, [groups, searchQuery]);
 
-  const handleGroupSelect = (groupNumber: string) => {
+  const handleGroupSelect = (groupNumber: string | number) => {
+    // CRITICAL FIX #6: Always coerce to string for navigation
     navigate(`/groups/${String(groupNumber)}`);
   };
 
@@ -200,6 +206,7 @@ export default function Groups() {
         {!isLoading && !error && filteredGroups && filteredGroups.length > 0 && (
           <div className="space-y-3">
             {filteredGroups.map((group) => {
+              // CRITICAL FIX #7: Always coerce to string
               const groupId = String(group.group_number);
               const stats = groupStats[groupId] || {
                 totalProducts: 0,
@@ -224,7 +231,9 @@ export default function Groups() {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="text-lg font-semibold text-foreground mb-2">{group.group_name}</div>
+                      <div className="text-lg font-semibold text-foreground mb-2">
+                        {group.group_name || `Group ${groupId}`}
+                      </div>
 
                       <div className="text-sm text-muted-foreground space-y-1">
                         {stats.isLoading ? (
