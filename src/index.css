@@ -9,7 +9,7 @@ All colors MUST be HSL.
 @layer base {
   :root {
     /* Industrial utility aesthetic - optimized for mobile warehouse use */
-    --background: 0 0% 98%;
+    --background: 200 60% 96%;
     --foreground: 215 25% 15%;
 
     --card: 0 0% 100%;

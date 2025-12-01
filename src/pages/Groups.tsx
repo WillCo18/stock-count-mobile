@@ -141,16 +141,35 @@ function Groups() {
     return stats;
   }, [productsData, groups, loadingGroups]);
 
-  // Filter groups based on search query
+  // Filter and sort groups based on search query
+  // Uncompleted groups appear first, then completed groups
+  // Both sorted alphabetically by group name
   const filteredGroups = useMemo(() => {
     if (!groups) return [];
-    if (!searchQuery.trim()) return groups;
 
-    const query = searchQuery.toLowerCase();
-    return groups.filter((group) => {
-      const name = (group.group_name || "").toLowerCase();
-      const num = String(group.group_number || "").toLowerCase();
-      return name.includes(query) || num.includes(query);
+    let filtered = groups;
+
+    // Filter based on search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = groups.filter((group) => {
+        const name = (group.group_name || "").toLowerCase();
+        const num = String(group.group_number || "").toLowerCase();
+        return name.includes(query) || num.includes(query);
+      });
+    }
+
+    // Sort: uncompleted first, then completed, both alphabetically
+    return filtered.sort((a, b) => {
+      // First, separate by completion status
+      if (a.completed !== b.completed) {
+        return a.completed ? 1 : -1; // Uncompleted (false) comes first
+      }
+      
+      // If same completion status, sort alphabetically by name
+      const nameA = (a.group_name || `Group ${a.group_number}`).toLowerCase();
+      const nameB = (b.group_name || `Group ${b.group_number}`).toLowerCase();
+      return nameA.localeCompare(nameB);
     });
   }, [groups, searchQuery]);
 
@@ -161,7 +180,7 @@ function Groups() {
   return (
     <MobileLayout title="Counting Groups">
       <div className="space-y-6">
-        <div className="rounded-lg border border-border bg-card/50 p-4">
+        <div className="rounded-lg border border-border bg-white p-4 shadow-md">
           <p className="text-sm text-muted-foreground">
             Counting as <span className="font-semibold text-foreground">{staffName}</span>
           </p>
@@ -219,11 +238,11 @@ function Groups() {
                   key={groupId}
                   onClick={() => handleGroupSelect(groupId)}
                   className={`
-                    w-full rounded-lg border p-6 text-left transition-all
+                    w-full rounded-lg border p-6 text-left transition-all shadow-md
                     ${
                       group.completed
-                        ? "border-border bg-muted/20 opacity-75"
-                        : "border-border bg-card hover:border-primary hover:bg-accent active:scale-[0.98]"
+                        ? "border-border bg-yellow-200 hover:bg-yellow-300 active:scale-[0.98]"
+                        : "border-border bg-white hover:border-primary hover:bg-gray-50 active:scale-[0.98]"
                     }
                   `}
                 >

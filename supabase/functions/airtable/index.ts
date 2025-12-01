@@ -69,6 +69,7 @@ serve(async (req) => {
 
       /**
        * GET /products?group=XX
+       * Fetches all products for a group, handling pagination
        */
       case "products": {
         const groupNumber = url.searchParams.get("group");
@@ -79,24 +80,44 @@ serve(async (req) => {
 
         console.log(`Fetching products for group: ${groupNumber}`);
 
-        const response = await fetch(`${baseUrl}/Products?filterByFormula={group_number}='${groupNumber}'`, {
-          headers: airtableHeaders,
-        });
+        let allProducts: any[] = [];
+        let offset: string | null = null;
+        let pageCount = 0;
 
-        if (!response.ok) {
-          throw new Error(`Airtable API error: ${response.statusText}`);
-        }
+        // Fetch all pages of results
+        do {
+          let requestUrl = `${baseUrl}/Products?filterByFormula={group_number}='${groupNumber}'&pageSize=100`;
+          if (offset) {
+            requestUrl += `&offset=${offset}`;
+          }
 
-        const data = await response.json();
-        console.log(`Retrieved ${data.records?.length || 0} products for group ${groupNumber}`);
+          const response = await fetch(requestUrl, {
+            headers: airtableHeaders,
+          });
 
-        const products =
-          data.records?.map((record: any) => ({
-            id: record.id,
-            fields: record.fields,
-          })) || [];
+          if (!response.ok) {
+            throw new Error(`Airtable API error: ${response.statusText}`);
+          }
 
-        return new Response(JSON.stringify({ products }), {
+          const data = await response.json();
+          const records = data.records || [];
+          
+          allProducts = allProducts.concat(
+            records.map((record: any) => ({
+              id: record.id,
+              fields: record.fields,
+            }))
+          );
+
+          offset = data.offset || null;
+          pageCount++;
+          
+          console.log(`Retrieved page ${pageCount}: ${records.length} products (total so far: ${allProducts.length})`);
+        } while (offset);
+
+        console.log(`Retrieved ${allProducts.length} total products for group ${groupNumber}`);
+
+        return new Response(JSON.stringify({ products: allProducts }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -201,6 +222,98 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+
+      /**
+       * POST /clear-counts
+       * Clear all counts (front_count and back_count) for products in a group
+       */
+      case "clear-counts": {
+        if (req.method !== "POST") throw new Error("POST method required");
+
+        const body = await req.json();
+        const { groupNumber } = body;
+
+        if (!groupNumber) {
+          throw new Error("Group number is required");
+        }
+
+        console.log(`Clearing counts for group: ${groupNumber}`);
+
+        // First, fetch all products for this group (with pagination)
+        let allProductRecords: any[] = [];
+        let offset: string | null = null;
+
+        do {
+          let requestUrl = `${baseUrl}/Products?filterByFormula={group_number}='${groupNumber}'&pageSize=100`;
+          if (offset) {
+            requestUrl += `&offset=${offset}`;
+          }
+
+          const fetchResponse = await fetch(requestUrl, {
+            headers: airtableHeaders,
+          });
+
+          if (!fetchResponse.ok) {
+            throw new Error(`Failed to fetch products: ${fetchResponse.statusText}`);
+          }
+
+          const fetchData = await fetchResponse.json();
+          allProductRecords = allProductRecords.concat(fetchData.records || []);
+          offset = fetchData.offset || null;
+        } while (offset);
+
+        console.log(`Found ${allProductRecords.length} products to clear for group ${groupNumber}`);
+
+        // Update all products to set counts to 0
+        // Airtable allows batch updates of up to 10 records at a time
+        const batchSize = 10;
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (let i = 0; i < allProductRecords.length; i += batchSize) {
+          const batch = allProductRecords.slice(i, i + batchSize);
+          
+          const updates = batch.map((record: any) => ({
+            id: record.id,
+            fields: {
+              front_count: 0,
+              back_count: 0,
+            },
+          }));
+
+          const updateResponse = await fetch(`${baseUrl}/Products`, {
+            method: "PATCH",
+            headers: {
+              ...airtableHeaders,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              records: updates,
+            }),
+          });
+
+          if (!updateResponse.ok) {
+            const errorText = await updateResponse.text();
+            console.error(`Failed to update batch: ${errorText}`);
+            errorCount += batch.length;
+          } else {
+            successCount += batch.length;
+          }
+        }
+
+        console.log(`Cleared counts: ${successCount} succeeded, ${errorCount} failed`);
+
+        return new Response(
+          JSON.stringify({
+            success: errorCount === 0,
+            cleared: successCount,
+            failed: errorCount,
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
 
       default:
