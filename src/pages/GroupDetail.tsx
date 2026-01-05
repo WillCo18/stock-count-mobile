@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchProductsByGroup, markGroupComplete, fetchAllGroups } from "@/lib/airtable";
-import { ArrowLeft, Loader2, CheckCircle2, Search, X } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle2, Search, X, AlertTriangle } from "lucide-react";
 import { ProductRow } from "@/components/ProductRow";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
 import { useMemo, useState } from "react";
 import {
@@ -22,6 +23,7 @@ export default function GroupDetail() {
   const queryClient = useQueryClient();
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [confirmZeros, setConfirmZeros] = useState(false);
 
   const {
     data: products,
@@ -115,6 +117,7 @@ export default function GroupDetail() {
   });
 
   const handleCompleteClick = () => {
+    setConfirmZeros(false); // Reset checkbox when opening modal
     setShowCompletionModal(true);
   };
 
@@ -237,10 +240,27 @@ export default function GroupDetail() {
               <span className="font-semibold">{productStats.counted}</span>
             </div>
 
-            {productStats.uncounted > 0 && (
-              <p className="text-sm text-amber-600 dark:text-amber-400 pt-2 border-t">
-                Products with no counts will be recorded as zero stock.
-              </p>
+            {(productStats.uncounted > 0 || productStats.partial > 0) && (
+              <div className="pt-3 border-t space-y-3">
+                <div className="flex items-start gap-2 text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <p className="text-sm">
+                    {productStats.uncounted > 0 && `${productStats.uncounted} uncounted product(s) will be recorded as zero stock.`}
+                    {productStats.uncounted > 0 && productStats.partial > 0 && " "}
+                    {productStats.partial > 0 && `${productStats.partial} product(s) have partial counts.`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="confirm-zeros"
+                    checked={confirmZeros}
+                    onCheckedChange={(checked) => setConfirmZeros(checked === true)}
+                  />
+                  <label htmlFor="confirm-zeros" className="text-sm font-medium cursor-pointer">
+                    I confirm these counts are correct
+                  </label>
+                </div>
+              </div>
             )}
           </div>
 
@@ -248,7 +268,10 @@ export default function GroupDetail() {
             <Button variant="outline" onClick={() => setShowCompletionModal(false)}>
               Cancel
             </Button>
-            <Button onClick={handleConfirmComplete} disabled={completeGroupMutation.isPending}>
+            <Button 
+              onClick={handleConfirmComplete} 
+              disabled={completeGroupMutation.isPending || ((productStats.uncounted > 0 || productStats.partial > 0) && !confirmZeros)}
+            >
               {completeGroupMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Complete"}
             </Button>
           </DialogFooter>

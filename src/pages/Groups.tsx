@@ -122,14 +122,13 @@ function Groups() {
       // Determine if all products are fully counted
       const allCounted = totalProducts > 0 && fullyCounted === totalProducts;
       // Determine if some products are counted (partial progress)
-      const someProgress = fullyCounted > 0 && fullyCounted < totalProducts;
+      const someProgress = fullyCounted > 0 || (totalProducts - notStarted) > 0;
 
+      // Status is based on actual product counts, NOT the Airtable "completed" field
       let statusLabel = "Not started";
-      if (group.completed === true) {
+      if (allCounted) {
         statusLabel = "Completed";
-      } else if (allCounted) {
-        statusLabel = "All counted";
-      } else if (someProgress || notStarted < totalProducts) {
+      } else if (someProgress && fullyCounted < totalProducts) {
         statusLabel = "In progress";
       }
 
