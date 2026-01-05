@@ -110,22 +110,26 @@ function Groups() {
         const hasBack = p.fields?.back_count !== null && p.fields?.back_count !== undefined;
 
         if (hasFront && hasBack) {
+          fullyCounted++;
           if (p.fields.front_count === 0 && p.fields.back_count === 0) {
             zeroStock++;
-          } else if (p.fields.front_count > 0 || p.fields.back_count > 0) {
-            fullyCounted++;
           }
         } else if (!hasFront && !hasBack) {
           notStarted++;
         }
       });
 
+      // Determine if all products are fully counted
+      const allCounted = totalProducts > 0 && fullyCounted === totalProducts;
+      // Determine if some products are counted (partial progress)
+      const someProgress = fullyCounted > 0 && fullyCounted < totalProducts;
+
       let statusLabel = "Not started";
       if (group.completed === true) {
         statusLabel = "Completed";
-      } else if (notStarted === totalProducts && totalProducts > 0) {
-        statusLabel = "Not started";
-      } else if (fullyCounted > 0 || zeroStock > 0) {
+      } else if (allCounted) {
+        statusLabel = "All counted";
+      } else if (someProgress || notStarted < totalProducts) {
         statusLabel = "In progress";
       }
 
@@ -135,6 +139,8 @@ function Groups() {
         zeroStock,
         statusLabel,
         isLoading,
+        allCounted,
+        someProgress,
       };
     });
 
@@ -233,17 +239,23 @@ function Groups() {
                 isLoading: true,
               };
 
+              const getCardStyles = () => {
+                if (stats.allCounted || group.completed) {
+                  return "border-status-complete bg-status-complete-bg hover:bg-status-complete-bg/80";
+                }
+                if (stats.someProgress) {
+                  return "border-status-partial bg-status-partial-bg hover:bg-status-partial-bg/80";
+                }
+                return "border-border bg-white hover:border-primary hover:bg-gray-50";
+              };
+
               return (
                 <button
                   key={groupId}
                   onClick={() => handleGroupSelect(groupId)}
                   className={`
-                    w-full rounded-lg border p-6 text-left transition-all shadow-md
-                    ${
-                      group.completed
-                        ? "border-border bg-yellow-200 hover:bg-yellow-300 active:scale-[0.98]"
-                        : "border-border bg-white hover:border-primary hover:bg-gray-50 active:scale-[0.98]"
-                    }
+                    w-full rounded-lg border p-6 text-left transition-all shadow-md active:scale-[0.98]
+                    ${getCardStyles()}
                   `}
                 >
                   <div className="flex items-start justify-between gap-4">
