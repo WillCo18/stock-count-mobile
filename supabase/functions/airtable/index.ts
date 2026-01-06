@@ -322,8 +322,9 @@ serve(async (req) => {
        */
       case "users": {
         console.log("Fetching all users from Airtable");
+        const usersTableId = "tblCSNPmfUiCpiL0r";
 
-        const response = await fetch(`${baseUrl}/Users`, {
+        const response = await fetch(`${baseUrl}/${usersTableId}`, {
           headers: airtableHeaders,
         });
 
@@ -365,8 +366,9 @@ serve(async (req) => {
         }
 
         console.log(`Creating new user: ${name} with role: ${role || "Staff"}`);
+        const usersTableId = "tblCSNPmfUiCpiL0r";
 
-        const response = await fetch(`${baseUrl}/Users`, {
+        const response = await fetch(`${baseUrl}/${usersTableId}`, {
           method: "POST",
           headers: airtableHeaders,
           body: JSON.stringify({
@@ -428,10 +430,11 @@ serve(async (req) => {
         }
 
         console.log(`Updating user with ID: ${user_id}`);
+        const usersTableId = "tblCSNPmfUiCpiL0r";
 
         // Find the user record by user_id (auto number field)
         const findResponse = await fetch(
-          `${baseUrl}/Users?filterByFormula={user_id}=${user_id}`,
+          `${baseUrl}/${usersTableId}?filterByFormula={user_id}=${user_id}`,
           {
             headers: airtableHeaders,
           }
@@ -455,7 +458,7 @@ serve(async (req) => {
         if (updates.is_active !== undefined) fieldsToUpdate.is_active = updates.is_active;
         if (updates.last_used_date !== undefined) fieldsToUpdate.last_used_date = updates.last_used_date;
 
-        const updateResponse = await fetch(`${baseUrl}/Users/${recordId}`, {
+        const updateResponse = await fetch(`${baseUrl}/${usersTableId}/${recordId}`, {
           method: "PATCH",
           headers: airtableHeaders,
           body: JSON.stringify({
