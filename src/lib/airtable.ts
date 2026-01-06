@@ -34,6 +34,16 @@ export interface CountSubmission {
   sheetCompleted: boolean;
 }
 
+export interface AirtableUser {
+  id: string;
+  user_id: number;
+  name: string;
+  role: "Staff" | "Admin";
+  is_active: boolean;
+  created_date?: string;
+  last_used_date?: string;
+}
+
 /**
  * Base Airtable configuration
  * Uses Lovable Cloud edge function to securely access API credentials
@@ -147,6 +157,75 @@ export async function markGroupComplete(groupNumber: string): Promise<{ success:
     return data;
   } catch (error) {
     console.error("Error marking group complete:", error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch all users from the Users table
+ */
+export async function fetchUsers(): Promise<AirtableUser[]> {
+  try {
+    const { data, error } = await supabase.functions.invoke("airtable/users", {
+      method: "GET",
+    });
+
+    if (error) {
+      throw new Error(`Failed to fetch users: ${error.message}`);
+    }
+
+    return data?.users || [];
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    throw error;
+  }
+}
+
+/**
+ * Create a new user
+ * @param name - User's name
+ * @param role - User's role (Staff or Admin)
+ */
+export async function addUser(name: string, role: "Staff" | "Admin" = "Staff"): Promise<{ success: boolean; user?: AirtableUser }> {
+  try {
+    const { data, error } = await supabase.functions.invoke("airtable/add-user", {
+      method: "POST",
+      body: { name, role },
+    });
+
+    if (error) {
+      throw new Error(`Failed to add user: ${error.message}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error adding user:", error);
+    throw error;
+  }
+}
+
+/**
+ * Update an existing user
+ * @param user_id - The Airtable user_id (auto number)
+ * @param updates - Object with fields to update
+ */
+export async function updateUser(
+  user_id: number,
+  updates: Partial<Pick<AirtableUser, "name" | "role" | "is_active" | "last_used_date">>
+): Promise<{ success: boolean; user?: AirtableUser }> {
+  try {
+    const { data, error } = await supabase.functions.invoke("airtable/update-user", {
+      method: "POST",
+      body: { user_id, updates },
+    });
+
+    if (error) {
+      throw new Error(`Failed to update user: ${error.message}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error updating user:", error);
     throw error;
   }
 }
