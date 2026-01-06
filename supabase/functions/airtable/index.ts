@@ -316,6 +316,181 @@ serve(async (req) => {
         );
       }
 
+      /**
+       * GET /users
+       * Fetch all users from the Users table
+       */
+      case "users": {
+        console.log("Fetching all users from Airtable");
+
+        const response = await fetch(`${baseUrl}/Users`, {
+          headers: airtableHeaders,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Airtable API error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log(`Retrieved ${data.records?.length || 0} users`);
+
+        const users =
+          data.records?.map((record: any) => ({
+            id: record.id,
+            user_id: record.fields.user_id,
+            name: record.fields.name,
+            role: record.fields.role || "Staff",
+            is_active: record.fields.is_active || false,
+            created_date: record.fields.created_date,
+            last_used_date: record.fields.last_used_date,
+          })) || [];
+
+        return new Response(JSON.stringify({ users }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      /**
+       * POST /add-user
+       * Create a new user in the Users table
+       */
+      case "add-user": {
+        if (req.method !== "POST") throw new Error("POST method required");
+
+        const body = await req.json();
+        const { name, role } = body;
+
+        if (!name) {
+          throw new Error("Name is required");
+        }
+
+        console.log(`Creating new user: ${name} with role: ${role || "Staff"}`);
+
+        const response = await fetch(`${baseUrl}/Users`, {
+          method: "POST",
+          headers: airtableHeaders,
+          body: JSON.stringify({
+            records: [
+              {
+                fields: {
+                  name: name,
+                  role: role || "Staff",
+                  is_active: true,
+                  created_date: new Date().toISOString().split("T")[0],
+                },
+              },
+            ],
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Airtable create user error:", errorText);
+          throw new Error(`Failed to create user: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const createdRecord = data.records?.[0];
+        console.log(`User created successfully, record ID: ${createdRecord?.id}`);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            user: {
+              id: createdRecord?.id,
+              user_id: createdRecord?.fields?.user_id,
+              name: createdRecord?.fields?.name,
+              role: createdRecord?.fields?.role,
+              is_active: createdRecord?.fields?.is_active,
+              created_date: createdRecord?.fields?.created_date,
+            },
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      /**
+       * PATCH /update-user
+       * Update an existing user in the Users table
+       */
+      case "update-user": {
+        if (req.method !== "PATCH" && req.method !== "POST") {
+          throw new Error("PATCH or POST method required");
+        }
+
+        const body = await req.json();
+        const { user_id, updates } = body;
+
+        if (!user_id) {
+          throw new Error("user_id is required");
+        }
+
+        console.log(`Updating user with ID: ${user_id}`);
+
+        // Find the user record by user_id (auto number field)
+        const findResponse = await fetch(
+          `${baseUrl}/Users?filterByFormula={user_id}=${user_id}`,
+          {
+            headers: airtableHeaders,
+          }
+        );
+
+        if (!findResponse.ok) {
+          throw new Error(`Failed to find user: ${findResponse.statusText}`);
+        }
+
+        const findData = await findResponse.json();
+        if (!findData.records || findData.records.length === 0) {
+          throw new Error(`User with ID ${user_id} not found`);
+        }
+
+        const recordId = findData.records[0].id;
+
+        // Prepare the fields to update
+        const fieldsToUpdate: Record<string, any> = {};
+        if (updates.name !== undefined) fieldsToUpdate.name = updates.name;
+        if (updates.role !== undefined) fieldsToUpdate.role = updates.role;
+        if (updates.is_active !== undefined) fieldsToUpdate.is_active = updates.is_active;
+        if (updates.last_used_date !== undefined) fieldsToUpdate.last_used_date = updates.last_used_date;
+
+        const updateResponse = await fetch(`${baseUrl}/Users/${recordId}`, {
+          method: "PATCH",
+          headers: airtableHeaders,
+          body: JSON.stringify({
+            fields: fieldsToUpdate,
+          }),
+        });
+
+        if (!updateResponse.ok) {
+          const errorText = await updateResponse.text();
+          console.error("Airtable update user error:", errorText);
+          throw new Error(`Failed to update user: ${updateResponse.statusText}`);
+        }
+
+        const data = await updateResponse.json();
+        console.log(`User updated successfully, record ID: ${data.id}`);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            user: {
+              id: data.id,
+              user_id: data.fields?.user_id,
+              name: data.fields?.name,
+              role: data.fields?.role,
+              is_active: data.fields?.is_active,
+              created_date: data.fields?.created_date,
+              last_used_date: data.fields?.last_used_date,
+            },
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
       default:
         throw new Error("Invalid endpoint");
     }
