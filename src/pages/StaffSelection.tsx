@@ -30,8 +30,14 @@ export default function StaffSelection() {
   }, []);
 
   const handleSelectStaff = (user: AirtableUser) => {
-    setStaff(user.name, user.role, user.user_id);
-    navigate("/groups");
+    console.log("Selecting staff:", user);
+    try {
+      setStaff(user.name, user.role, user.user_id ?? 0);
+      console.log("Staff set successfully, navigating to /groups");
+      navigate("/groups");
+    } catch (err) {
+      console.error("Error setting staff:", err);
+    }
   };
 
   return (
