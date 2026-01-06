@@ -1,15 +1,36 @@
 import { useNavigate } from "react-router-dom";
 import { useStaff } from "@/contexts/StaffContext";
 import { Card } from "@/components/ui/card";
-
-const STAFF_NAMES = ["Lauren", "Martin", "Simon", "Trevor"];
+import { fetchUsers, AirtableUser } from "@/lib/airtable";
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 export default function StaffSelection() {
   const navigate = useNavigate();
-  const { setStaffName } = useStaff();
+  const { setStaff } = useStaff();
+  const [users, setUsers] = useState<AirtableUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSelectStaff = (name: string) => {
-    setStaffName(name);
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const fetchedUsers = await fetchUsers();
+        // Filter to only show active users
+        const activeUsers = fetchedUsers.filter(u => u.is_active !== false);
+        setUsers(activeUsers);
+      } catch (err) {
+        console.error("Failed to fetch users:", err);
+        setError("Failed to load staff list");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadUsers();
+  }, []);
+
+  const handleSelectStaff = (user: AirtableUser) => {
+    setStaff(user.name, user.role, user.user_id);
     navigate("/groups");
   };
 
@@ -29,17 +50,27 @@ export default function StaffSelection() {
           </div>
 
           <Card className="overflow-hidden">
-            <div className="divide-y divide-border">
-              {STAFF_NAMES.map((name) => (
-                <button
-                  key={name}
-                  onClick={() => handleSelectStaff(name)}
-                  className="w-full px-6 py-4 text-left text-base font-medium text-foreground transition-colors hover:bg-accent focus:bg-accent focus:outline-none active:bg-accent/80 md:px-8 md:py-5 md:text-lg"
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : error ? (
+              <div className="py-8 text-center text-destructive">{error}</div>
+            ) : users.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">No staff members found</div>
+            ) : (
+              <div className="divide-y divide-border">
+                {users.map((user) => (
+                  <button
+                    key={user.id}
+                    onClick={() => handleSelectStaff(user)}
+                    className="w-full px-6 py-4 text-left text-base font-medium text-foreground transition-colors hover:bg-accent focus:bg-accent focus:outline-none active:bg-accent/80 md:px-8 md:py-5 md:text-lg"
+                  >
+                    {user.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
       </main>
